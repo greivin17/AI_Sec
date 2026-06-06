@@ -23,7 +23,9 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import os
           import shutil
+          import subprocess
           import zipfile
 
           repo = Path.cwd()
@@ -44,13 +46,17 @@ jobs:
           skipped_suffixes = {".pyc", ".pyo"}
 
           for source in unpack.rglob("*"):
-              rel = source.relative_to(unpack)
-              parts = set(rel.parts)
-              if parts & skipped_dirs:
-                  continue
               if source.is_dir():
                   continue
-              if source.suffix in skipped_suffixes:
+
+              # The source archive was created on Windows. Normalize literal
+              # backslashes inside zip member names so Linux checkout paths are
+              # normal repository paths rather than files named "app\\main.py".
+              rel_text = source.relative_to(unpack).as_posix().replace("\\", "/")
+              rel = Path(rel_text)
+              if set(rel.parts) & skipped_dirs:
+                  continue
+              if rel.suffix in skipped_suffixes:
                   continue
 
               target = repo / rel
@@ -58,6 +64,23 @@ jobs:
               shutil.copy2(source, target)
 
           shutil.rmtree(unpack)
+
+          tracked = subprocess.check_output(["git", "ls-files", "-z"])
+          for raw in tracked.split(b"\0"):
+              if not raw:
+                  continue
+              tracked_path = raw.decode("utf-8", errors="surrogateescape")
+              if "\\" not in tracked_path:
+                  continue
+              # Preserve the archive and summary in artifacts, but remove bad
+              # root-level paths created from Windows zip separators.
+              if tracked_path.startswith("artifacts/"):
+                  continue
+              bad_path = repo / tracked_path
+              try:
+                  bad_path.unlink()
+              except FileNotFoundError:
+                  pass
           PY
 
       - name: Commit applied source
