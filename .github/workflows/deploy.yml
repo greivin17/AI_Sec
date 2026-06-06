@@ -1,8 +1,6 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       environment:
@@ -17,10 +15,51 @@ env:
   AZURE_LOCATION: eastus
 
 jobs:
-  # ── Deploy Infrastructure ────────────────────────────────────────────────────
+  product-release-gate:
+    name: Product Workflow Release Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OPA
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -L -o "$RUNNER_TEMP/bin/opa" \
+            https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
+          chmod +x "$RUNNER_TEMP/bin/opa"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Evaluate product workflow release gate
+        run: |
+          INPUT_FILE=".github/product-workflow-release.json"
+          DECISION=$(opa eval \
+            --v0-compatible \
+            --data policies/product_workflow.rego \
+            --input "$INPUT_FILE" \
+            --format raw \
+            'data.agent.product_workflow.deploy_allowed')
+          EXCEPTION=$(opa eval \
+            --v0-compatible \
+            --data policies/product_workflow.rego \
+            --input "$INPUT_FILE" \
+            --format raw \
+            'data.agent.product_workflow.requires_security_exception')
+          if [ "${{ env.ENVIRONMENT }}" = "prod" ] && [ "$DECISION" != "true" ]; then
+            echo "Production deploy requires deploy_allowed=true from product workflow review."
+            opa eval --v0-compatible --data policies/product_workflow.rego --input "$INPUT_FILE" 'data.agent.product_workflow.release_summary'
+            exit 1
+          fi
+          if [ "$DECISION" != "true" ] && [ "$EXCEPTION" != "true" ]; then
+            echo "Deployment is neither approved nor conditionally approved."
+            opa eval --v0-compatible --data policies/product_workflow.rego --input "$INPUT_FILE" 'data.agent.product_workflow.release_summary'
+            exit 1
+          fi
+
   deploy-infra:
     name: Deploy Bicep Infrastructure
     runs-on: ubuntu-latest
+    needs: product-release-gate
     environment: ${{ github.event.inputs.environment || 'dev' }}
     outputs:
       acr_name: ${{ steps.deploy.outputs.AZURE_CONTAINER_REGISTRY_NAME }}
@@ -40,7 +79,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Azure Login (OIDC — no stored credentials)
+      - name: Azure Login (OIDC no stored credentials)
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -69,7 +108,6 @@ jobs:
           deploymentName: ai-sandbox-${{ github.run_number }}
           failOnStdErr: true
 
-  # ── Build & Push Container Images ────────────────────────────────────────────
   build-push:
     name: Build & Push Images
     runs-on: ubuntu-latest
@@ -163,7 +201,6 @@ jobs:
             "${{ needs.deploy-infra.outputs.resource_group }}" \
             "${{ needs.deploy-infra.outputs.aad_client_id }}"
 
-  # ── Build OPA Image & Patch Sidecars ─────────────────────────────────────────
   push-policies:
     name: Build OPA Image & Patch Sidecars
     runs-on: ubuntu-latest
@@ -230,7 +267,6 @@ jobs:
             az webapp restart --resource-group "$RG" --name "$OPA_WEBAPP"
           fi
 
-  # ── Update Container App ─────────────────────────────────────────────────────
   update-app:
     name: Update Container App
     runs-on: ubuntu-latest
@@ -256,7 +292,7 @@ jobs:
             --linux-fx-version "DOCKER|${ACR}/ai-sandbox/orchestrator:${{ github.sha }}"
           az webapp restart --resource-group $RG --name $APP
 
-      - name: Smoke test — APIM inward
+      - name: Smoke test APIM inward
         shell: pwsh
         run: |
           Start-Sleep -Seconds 20
