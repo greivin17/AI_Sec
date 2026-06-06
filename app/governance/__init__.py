@@ -3,27 +3,13 @@ ISO 42001 / NIST AI RMF governance module.
 
 Responsibilities
 ----------------
-1. Load static **model cards** for each agent type from
+1. Load static model cards for each agent type from
    ``app/governance/model_cards/{agent_type}.json``.
-2. Expose a stable :class:`AIGovernanceMetadata` reference (the compact
-   ``agent_type@version/risk`` string) that :class:`AuditLogger` attaches to
-   every emitted event when an explicit reference is not supplied.
-3. Maintain a deterministic **control mapping** matrix that links each OPA
-   policy file (and major in-process enforcement point) to the ISO 42001
-   control ID and NIST AI RMF function it satisfies. This matrix is the
-   evidence pack auditors consume via ``GET /compliance/control-mapping``.
-4. Issue HMAC-signed **run attestations** via :func:`build_run_attestation`.
-
-Design notes
-------------
-* Model cards are loaded once at import. Reloading requires a restart — they
-  are governance artifacts and must be reviewed before being deployed.
-* The policy-bundle hash (SHA-256 of all ``policies/**/*.rego`` + ``data/*.json``
-  files) is computed lazily and cached so attestations can prove which policy
-  version was in force.
-* Attestation signatures reuse ``APIM_IDENTITY_SIGNING_SECRET`` (same trust
-  root as the per-request signed identity envelope). Fail-closed: if the
-  secret is unset, attestation issuance raises.
+2. Expose a stable :class:`AIGovernanceMetadata` reference that
+   :class:`AuditLogger` attaches to emitted events.
+3. Maintain a deterministic control mapping matrix that links each OPA policy
+   file and major in-process enforcement point to ISO 42001 and NIST AI RMF.
+4. Issue HMAC-signed run attestations via :func:`build_run_attestation`.
 """
 
 from __future__ import annotations
@@ -43,14 +29,12 @@ from models.ai_governance import AIGovernanceMetadata, ModelCard
 
 logger = logging.getLogger(__name__)
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
-_PKG_DIR = Path(__file__).resolve().parent  # app/governance
-_APP_DIR = _PKG_DIR.parent                  # app
+_PKG_DIR = Path(__file__).resolve().parent
+_APP_DIR = _PKG_DIR.parent
 _MODEL_CARDS_DIR = _PKG_DIR / "model_cards"
 _POLICIES_DIR = _APP_DIR.parent / "policies"
 
 
-# ── Model card loader ─────────────────────────────────────────────────────────
 @lru_cache(maxsize=None)
 def _load_all_model_cards() -> dict[str, ModelCard]:
     cards: dict[str, ModelCard] = {}
@@ -63,8 +47,6 @@ def _load_all_model_cards() -> dict[str, ModelCard]:
                 payload = json.load(fh)
             card = ModelCard.model_validate(payload)
         except Exception as exc:
-            # Fail-closed at import: an invalid model card is a deployment
-            # error a regulated buyer cannot tolerate silently.
             raise RuntimeError(
                 f"Failed to load model card {path.name}: {exc}"
             ) from exc
@@ -81,13 +63,8 @@ def list_agent_types_with_cards() -> list[str]:
     return sorted(_load_all_model_cards().keys())
 
 
-# ── Governance metadata reference ─────────────────────────────────────────────
 def build_governance_metadata(agent_type: str) -> AIGovernanceMetadata | None:
-    """Compose the lightweight metadata pointer for an audit event.
-
-    Returns ``None`` for synthetic / control-plane agent types (e.g. requests
-    that have no business with a model card, like health probes).
-    """
+    """Compose the lightweight metadata pointer for an audit event."""
     card = get_model_card(agent_type)
     if card is None:
         return None
@@ -106,10 +83,6 @@ def governance_reference(agent_type: str) -> str | None:
     return metadata.reference() if metadata else None
 
 
-# ── Control-mapping matrix ────────────────────────────────────────────────────
-# Each enforcement point in the sandbox is mapped to an ISO 42001 control ID
-# and the NIST AI RMF function it satisfies. Auditors use this matrix to
-# build the evidence pack from the running policy bundle + audit telemetry.
 _CONTROL_MAPPING: list[dict[str, Any]] = [
     {
         "enforcement_point": "capability_manifest.py",
@@ -164,7 +137,7 @@ _CONTROL_MAPPING: list[dict[str, Any]] = [
     {
         "enforcement_point": "policies/excessive_agency.rego",
         "description": (
-            "LLM08 \u2014 risk-score escalation to human approval for "
+            "LLM08 risk-score escalation to human approval for "
             "high-risk tool calls."
         ),
         "iso_42001_controls": ["8.3.1", "8.4.2"],
@@ -177,6 +150,15 @@ _CONTROL_MAPPING: list[dict[str, Any]] = [
         ),
         "iso_42001_controls": ["8.2.2", "8.3.1"],
         "nist_ai_rmf": ["measure", "manage"],
+    },
+    {
+        "enforcement_point": "policies/product_workflow.rego",
+        "description": (
+            "Release gate for registered agents based on go/no-go review, "
+            "risk tier, red-team results, owners, and business purpose."
+        ),
+        "iso_42001_controls": ["8.2.1", "8.3.1", "9.2"],
+        "nist_ai_rmf": ["govern", "map", "measure", "manage"],
     },
     {
         "enforcement_point": "app/prompt_shield.py + app/main.py regex layer",
@@ -216,9 +198,7 @@ _CONTROL_MAPPING: list[dict[str, Any]] = [
     },
     {
         "enforcement_point": "app/main.py signed identity envelope",
-        "description": (
-            "HMAC-signed per-request identity envelope from APIM."
-        ),
+        "description": "HMAC-signed per-request identity envelope from APIM.",
         "iso_42001_controls": ["8.2.1", "8.5.2"],
         "nist_ai_rmf": ["govern"],
     },
@@ -230,17 +210,10 @@ def get_control_mapping() -> list[dict[str, Any]]:
     return [dict(row) for row in _CONTROL_MAPPING]
 
 
-# ── Policy bundle hash ────────────────────────────────────────────────────────
 @lru_cache(maxsize=1)
 def get_policy_bundle_hash() -> str:
-    """SHA-256 over the rego + data files that constitute the policy bundle.
-
-    Cached for the lifetime of the process. Restarting the orchestrator
-    re-reads policies, so the hash refreshes on the next attestation.
-    """
+    """SHA-256 over the Rego and data files that constitute the policy bundle."""
     if not _POLICIES_DIR.is_dir():
-        # No policies directory in test environments → return a stable
-        # sentinel rather than failing imports.
         return "no-bundle"
     digest = hashlib.sha256()
     files: list[Path] = []
@@ -261,15 +234,8 @@ def get_policy_bundle_hash() -> str:
     return digest.hexdigest()
 
 
-# ── Consent derivation ────────────────────────────────────────────────────────
 def derive_consent_status(classification_label: str | None) -> str:
-    """Derive ISO/GDPR-friendly consent status from data classification.
-
-    Replaces the previous hardcoded ``"not_required"`` default. Confidential
-    and restricted data require evidence of consent (verified upstream by
-    APIM JWT claims); everything else is treated as not requiring consent
-    for the purposes of security monitoring.
-    """
+    """Derive ISO/GDPR-friendly consent status from data classification."""
     if classification_label and classification_label.lower() in {
         "confidential",
         "restricted",
@@ -278,7 +244,6 @@ def derive_consent_status(classification_label: str | None) -> str:
     return "not_required"
 
 
-# ── Attestation ───────────────────────────────────────────────────────────────
 def build_run_attestation(
     *,
     run_id: str,
@@ -286,11 +251,7 @@ def build_run_attestation(
     extra: dict[str, Any] | None = None,
     signing_secret: str | None = None,
 ) -> dict[str, Any]:
-    """Produce a signed attestation that a run executed under stated governance.
-
-    Returns ``{"payload": {...}, "signature": "hex"}``. The signature is
-    ``hmac.new(secret, canonical_json(payload), sha256).hexdigest()``.
-    """
+    """Produce a signed attestation for a run's governance context."""
     card = get_model_card(agent_type)
     if card is None:
         raise ValueError(f"No model card registered for agent type {agent_type!r}")
