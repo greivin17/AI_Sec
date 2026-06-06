@@ -23,7 +23,6 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import os
           import shutil
           import subprocess
           import zipfile
@@ -45,6 +44,10 @@ jobs:
           skipped_dirs = {".git", "artifacts", "__pycache__"}
           skipped_suffixes = {".pyc", ".pyo"}
 
+          def is_workflow_path(path_text: str) -> bool:
+              normalized = path_text.replace("\\", "/")
+              return normalized.startswith(".github/workflows/")
+
           for source in unpack.rglob("*"):
               if source.is_dir():
                   continue
@@ -53,6 +56,9 @@ jobs:
               # backslashes inside zip member names so Linux checkout paths are
               # normal repository paths rather than files named "app\\main.py".
               rel_text = source.relative_to(unpack).as_posix().replace("\\", "/")
+              if is_workflow_path(rel_text):
+                  continue
+
               rel = Path(rel_text)
               if set(rel.parts) & skipped_dirs:
                   continue
@@ -72,9 +78,10 @@ jobs:
               tracked_path = raw.decode("utf-8", errors="surrogateescape")
               if "\\" not in tracked_path:
                   continue
-              # Preserve the archive and summary in artifacts, but remove bad
-              # root-level paths created from Windows zip separators.
-              if tracked_path.startswith("artifacts/"):
+              # Preserve artifacts and workflow files. The Actions token can
+              # update contents, but GitHub blocks workflow-file mutations
+              # unless the app has the separate workflows permission.
+              if tracked_path.startswith("artifacts/") or is_workflow_path(tracked_path):
                   continue
               bad_path = repo / tracked_path
               try:
