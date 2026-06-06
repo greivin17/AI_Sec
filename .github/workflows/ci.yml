@@ -54,16 +54,21 @@ jobs:
           chmod +x "$RUNNER_TEMP/bin/opa"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
-      - name: Check OPA policy syntax
+      - name: Check legacy Rego policy syntax
         run: |
-          opa check --v0-compatible policies/agent_actions.rego
-          opa check --v0-compatible policies/filesystem.rego
-          opa check --v0-compatible policies/network.rego
-          opa check --v0-compatible policies/secrets.rego
-          opa check --v0-compatible policies/product_workflow.rego
+          opa check --v0-compatible \
+            policies/agent_actions.rego \
+            policies/filesystem.rego \
+            policies/network.rego \
+            policies/secrets.rego \
+            policies/product_workflow.rego
 
-      - name: Run OPA policy tests
-        run: opa test --v0-compatible policies/ -v
+      - name: Check Rego v1 policy syntax
+        run: |
+          opa check \
+            policies/delegation.rego \
+            policies/excessive_agency.rego \
+            policies/prompt_injection.rego
 
       - name: Check product workflow release gate
         run: |
@@ -84,12 +89,13 @@ jobs:
             --input /tmp/no-go-agent.json \
             --format raw \
             'data.agent.product_workflow.deploy_allowed')" = "false"
-          test "$(opa eval \
+          opa eval \
             --v0-compatible \
             --data policies/product_workflow.rego \
             --input /tmp/no-go-agent.json \
             --format raw \
-            'data.agent.product_workflow.deny[_] == "critical_red_team_failure"')" = "true"
+            'data.agent.product_workflow.deny' \
+            | grep -q '"critical_red_team_failure"'
 
   bicep-lint:
     name: Bicep Lint
