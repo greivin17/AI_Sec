@@ -2,6 +2,8 @@
 
 AI Security Sandbox is an Azure-native control plane for approving, deploying, monitoring, and auditing AI agents.
 
+**Suggested GitHub About description:** AI security workflow platform for registering agents, generating risk reviews, running red-team evals, enforcing OPA policies, and exporting audit evidence.
+
 It turns agent security from a one-time checklist into an operational workflow:
 
 1. Register an agent.
@@ -25,6 +27,24 @@ The core buyer is a security, AI governance, or platform engineering team that n
 - Which controls block prompt injection, data leakage, excessive agency, and unsafe egress?
 - Can the SOC trace, contain, and kill unsafe agent behavior?
 - Can the team export evidence for NIST AI RMF, ISO 42001, and OWASP LLM controls?
+
+## Demo Path
+
+Use these docs to pitch or record the product:
+
+- [Product demo script](docs/demo-script.md): 5 to 7 minute story for registration, risk review, red-team evals, OPA release gate, SOC monitoring, and evidence export.
+- [Two-minute walkthrough](docs/walkthrough.md): short README/video script plus screenshot checklist.
+- [Product workflow guide](docs/product-workflow-guide.md): implementation guide for the agent review lifecycle.
+- [Product demo story](docs/product-demo-story.md): narrative version of the buyer problem and product flow.
+
+Recommended demo thread:
+
+1. Register a network-capable agent that handles confidential or PII data.
+2. Show the generated OWASP/NIST/ISO mapped risk profile.
+3. Run the red-team/eval pack.
+4. Generate a go/no-go review.
+5. Show the OPA release gate and structured deny reasons.
+6. Show SOC monitoring concepts and export audit evidence.
 
 ## Architecture
 
@@ -122,6 +142,8 @@ The product workflow is implemented by:
 - `policies/product_workflow.rego`
 - `docs/product-workflow-guide.md`
 - `docs/product-demo-story.md`
+- `docs/demo-script.md`
+- `docs/walkthrough.md`
 - `frontend/src/components/ProductWorkflowConsole.tsx`
 
 The FastAPI router is mounted from `app/main.py`:
@@ -148,3 +170,13 @@ CI checks `policies/product_workflow.rego` with the rest of the OPA bundle. Prod
 - `deploy_allowed`: true for approved low/medium-risk agents without critical eval failures.
 - `requires_security_exception`: true for conditional approvals that need tracked acceptance.
 - `deny`: structured blocker reasons for no-go releases.
+
+## Next Milestones
+
+The next product work is tracked as GitHub issues:
+
+- SOC console polish
+- Audit evidence export UI
+- Multi-tenant agent registry
+- Policy pack marketplace
+- Jira/GitHub approval integrations
