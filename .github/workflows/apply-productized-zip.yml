@@ -1,0 +1,73 @@
+name: Apply productized sandbox zip
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/apply-productized-zip.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Extract productized repo into source tree
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply productized archive
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+          import zipfile
+
+          repo = Path.cwd()
+          archive = repo / "artifacts" / "ai_security_sandbox_productized_repo.zip"
+          unpack = repo / "_productized_unpack"
+
+          if not archive.exists():
+              raise SystemExit(f"Missing archive: {archive}")
+
+          if unpack.exists():
+              shutil.rmtree(unpack)
+          unpack.mkdir()
+
+          with zipfile.ZipFile(archive) as zf:
+              zf.extractall(unpack)
+
+          skipped_dirs = {".git", "artifacts", "__pycache__"}
+          skipped_suffixes = {".pyc", ".pyo"}
+
+          for source in unpack.rglob("*"):
+              rel = source.relative_to(unpack)
+              parts = set(rel.parts)
+              if parts & skipped_dirs:
+                  continue
+              if source.is_dir():
+                  continue
+              if source.suffix in skipped_suffixes:
+                  continue
+
+              target = repo / rel
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(source, target)
+
+          shutil.rmtree(unpack)
+          PY
+
+      - name: Commit applied source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No productized source changes to commit."
+            exit 0
+          fi
+          git commit -m "Apply productized AI security sandbox source"
+          git push
