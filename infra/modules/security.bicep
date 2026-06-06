@@ -146,7 +146,6 @@ output orchestratorClientId string = orchestratorIdentity.properties.clientId
 output agentRunnerIdentityId string = agentRunnerIdentity.id
 output agentRunnerPrincipalId string = agentRunnerIdentity.properties.principalId
 output agentRunnerClientId string = agentRunnerIdentity.properties.clientId
-<<<<<<< HEAD
 output contentSafetyEndpoint string = contentSafety.properties.endpoint
 output contentSafetyName string = contentSafety.name
 output contentSafetyId string = contentSafety.id
@@ -218,5 +217,3 @@ resource contentSafetyPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-0
     ]
   }
 }
-=======
->>>>>>> origin/main

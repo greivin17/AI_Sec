@@ -115,7 +115,6 @@ class TokenBudget:
     @property
     def remaining(self) -> int:
         return self._max - self._used
-<<<<<<< HEAD
 
 
 class CostBudget:
@@ -176,5 +175,3 @@ class CostBudget:
     @property
     def budget_usd(self) -> float:
         return self._max
-=======
->>>>>>> origin/main

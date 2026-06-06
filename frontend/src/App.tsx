@@ -1,5 +1,7 @@
-import { Shield, LogIn, LogOut, User } from "lucide-react";
+import { useState } from "react";
+import { ClipboardCheck, LogIn, LogOut, MessageSquare, Shield, User } from "lucide-react";
 import AgentChatWorkspace from "./components/AgentChatWorkspace";
+import ProductWorkflowConsole from "./components/ProductWorkflowConsole";
 import { useAuthHeaders } from "./hooks/useAuthHeaders";
 import { authEnabled, loginRequest } from "./authConfig";
 
@@ -19,8 +21,10 @@ if (authEnabled) {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
+type ActiveView = "chat" | "workflow";
 
 export default function App() {
+  const [activeView, setActiveView] = useState<ActiveView>("workflow");
   const isAuthenticated = useIsAuthenticated();
   const { instance, accounts } = useMsal();
   const getAuthHeaders = useAuthHeaders();
@@ -55,14 +59,35 @@ export default function App() {
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-soc-blue" />
             <span className="font-bold text-soc-text text-sm tracking-tight md:text-base">
-              Secure Agent Chat
+              AI Security Sandbox
             </span>
             <span className="badge badge-blue text-xs hidden sm:inline-flex">Azure-first Demo</span>
           </div>
 
+          <div className="flex items-center gap-1 rounded-xl border border-soc-border bg-white p-1">
+            <button
+              className={`btn px-2 py-1 text-xs ${
+                activeView === "workflow" ? "bg-blue-50 text-blue-700" : "text-soc-muted"
+              }`}
+              onClick={() => setActiveView("workflow")}
+            >
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              Review
+            </button>
+            <button
+              className={`btn px-2 py-1 text-xs ${
+                activeView === "chat" ? "bg-blue-50 text-blue-700" : "text-soc-muted"
+              }`}
+              onClick={() => setActiveView("chat")}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Chat
+            </button>
+          </div>
+
           <div className="ml-auto flex items-center gap-3 text-xs text-soc-muted">
             <span className="hidden md:inline">
-              Chat + upload here. Investigate policy decisions and detections in Azure Security.
+              Review, deploy, monitor, and audit governed AI agents.
             </span>
 
             {authEnabled && accounts.length > 0 && (
@@ -85,7 +110,11 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-hidden">
-        <AgentChatWorkspace apiBase={API_BASE} getAuthHeaders={getAuthHeaders} />
+        {activeView === "workflow" ? (
+          <ProductWorkflowConsole apiBase={API_BASE} getAuthHeaders={getAuthHeaders} />
+        ) : (
+          <AgentChatWorkspace apiBase={API_BASE} getAuthHeaders={getAuthHeaders} />
+        )}
       </main>
     </div>
   );

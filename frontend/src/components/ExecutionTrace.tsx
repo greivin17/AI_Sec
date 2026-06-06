@@ -10,7 +10,6 @@ import {
   Globe,
   FileText,
   Zap,
-<<<<<<< HEAD
   Shield,
   ShieldCheck,
   Network,
@@ -22,8 +21,6 @@ import {
   ScanLine,
   GitBranch,
   ClipboardCheck,
-=======
->>>>>>> origin/main
 } from "lucide-react";
 import { AuditEvent, ActionType, PolicyDecision, Outcome, RunStatus } from "../types";
 import clsx from "clsx";
@@ -61,7 +58,6 @@ const ACTION_ICONS: Record<ActionType, React.ElementType> = {
   run_start: Clock,
   run_complete: CheckCircle,
   run_abort: XCircle,
-<<<<<<< HEAD
   prompt_shield_scan: ShieldCheck,
   retrieved_content_scan: ScanLine,
   agent_spawn: GitBranch,
@@ -92,8 +88,6 @@ const PHASE_BADGE: Partial<Record<ActionType, { label: string; cls: string }>> =
   excessive_agency_block: { label: "Phase 7", cls: "bg-orange-500/10 border-orange-500/30 text-orange-300" },
   loop_detected: { label: "Phase 7", cls: "bg-orange-500/10 border-orange-500/30 text-orange-300" },
   cost_threshold_breach: { label: "Phase 7", cls: "bg-orange-500/10 border-orange-500/30 text-orange-300" },
-=======
->>>>>>> origin/main
 };
 
 const DECISION_COLORS: Record<PolicyDecision, string> = {
@@ -157,7 +151,6 @@ function EventRow({ event, index }: { event: AuditEvent; index: number }) {
             {event.action_type.replace(/_/g, " ")}
           </span>
 
-<<<<<<< HEAD
           {/* Phase / surface badge (MCP, DSAR, Phase 1-7) */}
           {PHASE_BADGE[event.action_type] && (
             <span
@@ -170,8 +163,6 @@ function EventRow({ event, index }: { event: AuditEvent; index: number }) {
             </span>
           )}
 
-=======
->>>>>>> origin/main
           {/* Policy decision badge */}
           <span
             className={clsx(

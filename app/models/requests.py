@@ -56,7 +56,6 @@ class ApprovalCallbackRequest(BaseModel):
 
 class KillRunRequest(BaseModel):
     reason: str = Field(..., min_length=1, max_length=512)
-<<<<<<< HEAD
 
 
 class SpawnRunRequest(BaseModel):
@@ -77,5 +76,3 @@ class SpawnRunResponse(BaseModel):
     correlation_id: str
     delegation_nonce: str
     delegation_expires_at: int
-=======
->>>>>>> origin/main

@@ -25,11 +25,8 @@ Routes:
 from __future__ import annotations
 
 import asyncio
-<<<<<<< HEAD
 import base64
 import binascii
-=======
->>>>>>> origin/main
 import hashlib
 import hmac
 import json
@@ -37,22 +34,12 @@ import logging
 import os
 import re
 import time
-<<<<<<< HEAD
 import unicodedata
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-=======
-import uuid
-from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from typing import Any
-
-from agent import resolve_approval, run_agent
-from audit import AuditLogger
->>>>>>> origin/main
 from fastapi import (
     FastAPI,
     File,
@@ -65,7 +52,6 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-<<<<<<< HEAD
 from starlette.middleware.base import BaseHTTPMiddleware
 
 import dsar  # Phase 5 — DSAR export + purge
@@ -89,11 +75,6 @@ from kill_switch import KillSwitchClient, KillSwitchError
 from log_analytics import LogAnalyticsClient
 from mcp_client import get_default_registry
 from mcp_server import MCPServer
-=======
-from gateway import GatewayHeaderMiddleware
-from kill_switch import KillSwitchClient, KillSwitchError
-from log_analytics import LogAnalyticsClient
->>>>>>> origin/main
 from models.audit_event import ActionType, Outcome, PolicyDecision
 from models.requests import (
     AgentRunRequest,
@@ -103,20 +84,14 @@ from models.requests import (
     KillRunRequest,
     RunStatus,
     RunStatusResponse,
-<<<<<<< HEAD
     SpawnRunRequest,
     SpawnRunResponse,
 )
 from output_handlers import sanitize_agent_result
+from product_workflow import router as product_workflow_router
 from prompt_shield import PromptShieldClient
 from rate_limiter import RateLimiter, RateLimitExceeded
 from sandbox import EphemeralWorkspace
-=======
-)
-from rate_limiter import RateLimiter, RateLimitExceeded
-from sandbox import EphemeralWorkspace
-from starlette.middleware.base import BaseHTTPMiddleware
->>>>>>> origin/main
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -153,7 +128,6 @@ _HDR_AUTH_SCOPES = "X-Auth-Scopes"
 _HDR_AUTH_TIMESTAMP = "X-Auth-Timestamp"
 _HDR_AUTH_SIGNATURE = "X-Auth-Signature"
 
-<<<<<<< HEAD
 # Phase 5 — DSAR dual-control approver headers (second admin).
 _HDR_DUAL_SUBJECT = "X-Approver-Subject"
 _HDR_DUAL_TENANT_ID = "X-Approver-Tenant-Id"
@@ -164,8 +138,6 @@ _HDR_DUAL_SIGNATURE = "X-Approver-Signature"
 # Optional PEM public key (base64-encoded) for DSAR bundle encryption.
 _HDR_DSAR_PUBKEY = "X-DSAR-PublicKey-PEM-B64"
 
-=======
->>>>>>> origin/main
 # ── Shared state ──────────────────────────────────────────────────────────────
 _runs: dict[str, dict[str, Any]] = {}
 _run_tasks: dict[str, asyncio.Task] = {}
@@ -218,56 +190,32 @@ _INPUT_POLICY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (
         "prompt_instruction_override",
         re.compile(
-<<<<<<< HEAD
             r"(?is)\b(ignore|disregard|override|bypass)\b.{0,60}\b(previous|prior|system|developer)\b"
-=======
-            r"(?is)\\b(ignore|disregard|override|bypass)\\b.{0,60}\\b(previous|prior|system|developer)\\b"
->>>>>>> origin/main
         ),
     ),
     (
         "embedded_system_instruction",
-<<<<<<< HEAD
         re.compile(r"(?i)\b(system instruction|developer instruction)\b"),
     ),
     (
         "path_traversal_or_sensitive_path",
         re.compile(r"(?i)(\.\./|\.\.\\|/etc/passwd|authorized_keys|/proc/self/environ)"),
-=======
-        re.compile(r"(?i)\\b(system instruction|developer instruction)\\b"),
-    ),
-    (
-        "path_traversal_or_sensitive_path",
-        re.compile(r"(?i)(\\.\\./|\\.\\.\\\\|/etc/passwd|authorized_keys|/proc/self/environ)"),
->>>>>>> origin/main
     ),
     (
         "network_exfiltration_instruction",
         re.compile(
-<<<<<<< HEAD
             r"(?is)(http_post|http_put|http_delete|http_patch|exfiltrate|send\s+the\s+contents\s+as\s+a\s+post\s+request)"
-=======
-            r"(?is)(http_post|http_put|http_delete|http_patch|exfiltrate|send\\s+the\\s+contents\\s+as\\s+a\\s+post\\s+request)"
->>>>>>> origin/main
         ),
     ),
     (
         "metadata_endpoint_access",
-<<<<<<< HEAD
         re.compile(r"(?i)169\.254\.169\.254|metadata\.azure\.internal"),
-=======
-        re.compile(r"(?i)169\\.254\\.169\\.254|metadata\\.azure\\.internal"),
->>>>>>> origin/main
     ),
     (
         "token_bomb_instruction",
         re.compile(
             r"(?is)(verbosity amplification|analyze each (word|token) "
-<<<<<<< HEAD
             r"with full etymology|100,?000\s+tokens)"
-=======
-            r"with full etymology|100,?000\\s+tokens)"
->>>>>>> origin/main
         ),
     ),
 ]
@@ -276,21 +224,16 @@ _DLP_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("ssn", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
     ("credit_card", re.compile(r"\b(?:\d[ -]*?){13,19}\b")),
     ("email", re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)),
-<<<<<<< HEAD
     (
         "phone",
         re.compile(
             r"\b(?:\+?\d{1,3}[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}\b"
         ),
     ),
-=======
-    ("phone", re.compile(r"\b(?:\+?\d{1,3}[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}\b")),
->>>>>>> origin/main
     ("azure_storage_key", re.compile(r"(?i)AccountKey\s*=\s*[A-Za-z0-9+/]{32,}={0,2}")),
 ]
 
 _CONTENT_SAFETY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-<<<<<<< HEAD
     (
         "jailbreak_instruction",
         re.compile(
@@ -323,12 +266,6 @@ _CONTENT_SAFETY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
             r"(?is)\b(print|show|repeat|reveal|leak|dump|expose)\b\s+(your|the|its|my).{0,40}\b(prompt|message|instructions|instruction)\b"
         ),
     ),
-=======
-    ("jailbreak_instruction", re.compile(r"(?is)ignore\s+all\s+previous\s+instructions|reveal\s+system\s+prompt")),
-    ("self_harm", re.compile(r"(?i)how\s+to\s+self[- ]?harm|suicide\s+method")),
-    ("violence", re.compile(r"(?i)build\s+(a\s+)?bomb|violent\s+attack\s+plan")),
-    ("hate", re.compile(r"(?i)hate\s+speech|racial\s+slur")),
->>>>>>> origin/main
 ]
 
 _DLP_ENFORCEMENT_MODE = os.environ.get("DLP_ENFORCEMENT_MODE", "block").strip().lower()
@@ -336,7 +273,6 @@ _CONTENT_SAFETY_ENFORCEMENT_MODE = os.environ.get(
     "CONTENT_SAFETY_ENFORCEMENT_MODE", "block"
 ).strip().lower()
 
-<<<<<<< HEAD
 # Phase 1 — Prompt Shields client (singleton; no-op when endpoint unset).
 _prompt_shield: PromptShieldClient = PromptShieldClient()
 
@@ -375,8 +311,6 @@ def _normalize_for_injection_scan(text: str, *, max_chars: int = 20000) -> str:
         normalized = normalized[:max_chars] + "\n[truncated_for_injection_scan]"
     return normalized
 
-=======
->>>>>>> origin/main
 
 def _extract_text_for_policy_scan(raw_bytes: bytes, max_chars: int = 10000) -> str:
     """Decode uploaded bytes to bounded UTF-8 text for deterministic policy checks."""
@@ -391,16 +325,11 @@ def _extract_text_for_policy_scan(raw_bytes: bytes, max_chars: int = 10000) -> s
 def _scan_input_policy(task_text: str, uploaded_text: str = "") -> str | None:
     """Return the first matching input-policy violation code, else None."""
     combined = f"{task_text}\n\n{uploaded_text}" if uploaded_text else task_text
-<<<<<<< HEAD
     # Phase 1: normalize before regex match so obfuscation (NFKC look-alikes,
     # base64-wrapped payloads) is also caught by the deterministic floor.
     scan_text = _normalize_for_injection_scan(combined)
     for code, pattern in _INPUT_POLICY_PATTERNS:
         if pattern.search(scan_text):
-=======
-    for code, pattern in _INPUT_POLICY_PATTERNS:
-        if pattern.search(combined):
->>>>>>> origin/main
             return code
     return None
 
@@ -409,7 +338,6 @@ def _classify_data_sensitivity(text: str) -> str:
     """Classify data sensitivity for audit and optional policy enforcement."""
     normalized = text.lower()
     patterns = _scan_dlp_patterns(text)
-<<<<<<< HEAD
     if any(
         name in patterns for name in ["credit_card", "ssn", "azure_storage_key"]
     ):
@@ -417,11 +345,6 @@ def _classify_data_sensitivity(text: str) -> str:
     if patterns or any(
         k in normalized for k in ["confidential", "private", "internal only"]
     ):
-=======
-    if any(name in patterns for name in ["credit_card", "ssn", "azure_storage_key"]):
-        return "restricted"
-    if patterns or any(k in normalized for k in ["confidential", "private", "internal only"]):
->>>>>>> origin/main
         return "confidential"
     if any(k in normalized for k in ["public", "published", "marketing"]):
         return "public"
@@ -439,24 +362,16 @@ def _scan_dlp_patterns(text: str) -> list[str]:
 
 def _scan_content_safety(text: str) -> tuple[str | None, float]:
     """Heuristic content-safety score and category for background controls."""
-<<<<<<< HEAD
     scan_text = _normalize_for_injection_scan(text)
     max_risk = 0.0
     category: str | None = None
     for name, pattern in _CONTENT_SAFETY_PATTERNS:
         if pattern.search(scan_text):
-=======
-    max_risk = 0.0
-    category: str | None = None
-    for name, pattern in _CONTENT_SAFETY_PATTERNS:
-        if pattern.search(text):
->>>>>>> origin/main
             category = name
             if name == "jailbreak_instruction":
                 max_risk = max(max_risk, 0.9)
             elif name in {"self_harm", "violence", "hate"}:
                 max_risk = max(max_risk, 0.85)
-<<<<<<< HEAD
             elif name in {
                 "role_impersonation",
                 "system_block_injection",
@@ -464,8 +379,6 @@ def _scan_content_safety(text: str) -> tuple[str | None, float]:
                 "prompt_leak_request",
             }:
                 max_risk = max(max_risk, 0.88)
-=======
->>>>>>> origin/main
             else:
                 max_risk = max(max_risk, 0.7)
     return category, max_risk
@@ -493,13 +406,9 @@ def _enforce_background_security(
     dlp_should_block = _DLP_ENFORCEMENT_MODE == "block" and bool(patterns)
     auditor.log(
         ActionType.DLP_SCAN,
-<<<<<<< HEAD
         policy_decision=(
             PolicyDecision.DENY if dlp_should_block else PolicyDecision.ALLOW
         ),
-=======
-        policy_decision=PolicyDecision.DENY if dlp_should_block else PolicyDecision.ALLOW,
->>>>>>> origin/main
         outcome=Outcome.BLOCKED if dlp_should_block else Outcome.SUCCESS,
         dlp_patterns=patterns,
         classification_label=label,
@@ -512,13 +421,9 @@ def _enforce_background_security(
     )
     auditor.log(
         ActionType.CONTENT_SAFETY_CHECK,
-<<<<<<< HEAD
         policy_decision=(
             PolicyDecision.DENY if safety_should_block else PolicyDecision.ALLOW
         ),
-=======
-        policy_decision=PolicyDecision.DENY if safety_should_block else PolicyDecision.ALLOW,
->>>>>>> origin/main
         outcome=Outcome.BLOCKED if safety_should_block else Outcome.SUCCESS,
         content_safety_category=content_category,
         risk_score=content_risk,
@@ -535,7 +440,6 @@ def _enforce_background_security(
         )
 
 
-<<<<<<< HEAD
 async def _run_prompt_shield_scan(
     *,
     phase: str,
@@ -585,8 +489,6 @@ async def _run_prompt_shield_scan(
     )
 
 
-=======
->>>>>>> origin/main
 def _list_kill_switches() -> list[dict[str, Any]]:
     flags = []
     for metadata in _KILL_SWITCH_METADATA:
@@ -601,12 +503,8 @@ def _list_kill_switches() -> list[dict[str, Any]]:
 
 def _request_run_context(req: Request) -> tuple[str, str]:
     run_id = req.path_params.get("run_id") if hasattr(req, "path_params") else None
-<<<<<<< HEAD
     correlation_id = getattr(req.state, "correlation_id", uuid.uuid4())
     resolved_run_id = run_id or f"request-{correlation_id}"
-=======
-    resolved_run_id = run_id or f"request-{getattr(req.state, 'correlation_id', uuid.uuid4())}"
->>>>>>> origin/main
     run = _runs.get(run_id) if run_id else None
     agent_type = str(run.get("agent_type")) if run else "control-plane"
     return resolved_run_id, agent_type
@@ -754,13 +652,9 @@ def _require_identity(req: Request) -> dict[str, Any]:
 
     identity = _get_request_identity(req)
     if identity is None:
-<<<<<<< HEAD
         identity_error = getattr(
             req.state, "identity_error_code", "AUTHN_FAIL_IDENTITY_REQUIRED"
         )
-=======
-        identity_error = getattr(req.state, "identity_error_code", "AUTHN_FAIL_IDENTITY_REQUIRED")
->>>>>>> origin/main
         event_type = (
             ActionType.SIGNATURE_VERIFICATION_FAILURE
             if identity_error != "AUTHN_FAIL_MISSING_IDENTITY_HEADERS"
@@ -800,7 +694,6 @@ def _require_admin(req: Request) -> dict[str, Any]:
     return identity
 
 
-<<<<<<< HEAD
 def _require_dual_admin(req: Request) -> tuple[dict[str, Any], dict[str, Any]]:
     """Phase 5 — two-person rule for DSAR.
 
@@ -920,8 +813,6 @@ def _require_dual_admin(req: Request) -> tuple[dict[str, Any], dict[str, Any]]:
     return primary, approver
 
 
-=======
->>>>>>> origin/main
 def _authorize_run_access(req: Request, run: dict[str, Any]) -> None:
     if not ENABLE_APP_AUTHZ:
         return
@@ -1047,7 +938,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("AI Security Sandbox starting")
-<<<<<<< HEAD
     # Phase 4 — schedule the anomaly-baseline refresher. Default store is
     # in-memory and the loop is a no-op cadence; subclasses persisting to
     # blob storage use the same hook.
@@ -1061,12 +951,6 @@ async def lifespan(app: FastAPI):
         logger.info("Shutting down — cancelling %d active runs", len(_run_tasks))
         for task in list(_run_tasks.values()):
             task.cancel()
-=======
-    yield
-    logger.info("Shutting down — cancelling %d active runs", len(_run_tasks))
-    for task in list(_run_tasks.values()):
-        task.cancel()
->>>>>>> origin/main
 
 
 app = FastAPI(
@@ -1088,6 +972,7 @@ app.add_middleware(KillSwitchMiddleware)
 app.add_middleware(AuditMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(GatewayHeaderMiddleware)
+app.include_router(product_workflow_router)
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -1169,12 +1054,9 @@ async def start_run(
         "owner_subject": identity["subject"],
         "owner_tenant_id": identity["tenant_id"],
         "uploaded_filename": uploaded_filename,
-<<<<<<< HEAD
         "parent_run_id": None,
         "call_chain": [run_id],
         "call_depth": 0,
-=======
->>>>>>> origin/main
     }
 
     # Create SSE queue before spawning the task so no events are missed
@@ -1239,7 +1121,6 @@ async def _execute_run(
                 auditor=auditor,
             )
 
-<<<<<<< HEAD
             # Phase 1 — layered prompt-injection defense (Prompt Shields).
             await _run_prompt_shield_scan(
                 phase="input_task",
@@ -1248,8 +1129,6 @@ async def _execute_run(
                 source="user_prompt",
             )
 
-=======
->>>>>>> origin/main
             # Stage uploaded file into the sandbox read area
             if uploaded_bytes and uploaded_filename:
                 import mimetypes
@@ -1299,7 +1178,6 @@ async def _execute_run(
                     auditor=auditor,
                 )
 
-<<<<<<< HEAD
                 # Phase 1 — indirect injection scan on uploaded document.
                 await _run_prompt_shield_scan(
                     phase="input_file",
@@ -1308,8 +1186,6 @@ async def _execute_run(
                     source="uploaded_file",
                 )
 
-=======
->>>>>>> origin/main
                 # Augment prompt so the model always sees document context.
                 request.task = (
                     f"{request.task}\n\n"
@@ -1347,11 +1223,7 @@ async def _execute_run(
                 )
 
         _runs[run_id]["status"] = RunStatus.COMPLETED
-<<<<<<< HEAD
         _runs[run_id]["result"] = sanitize_agent_result(result)
-=======
-        _runs[run_id]["result"] = result
->>>>>>> origin/main
     except Exception as exc:
         logger.error("Run %s failed: %s", run_id, exc)
         _runs[run_id]["status"] = RunStatus.FAILED
@@ -1465,7 +1337,6 @@ async def get_run_timeline(run_id: str, req: Request):
     }
 
 
-<<<<<<< HEAD
 # ── Phase 2 — agent-to-agent delegation ──────────────────────────────────────
 
 
@@ -1653,8 +1524,6 @@ async def spawn_child_run(parent_run_id: str, req: Request):
     )
 
 
-=======
->>>>>>> origin/main
 # Simple in-memory event store as fallback (populated by SSE push)
 _in_memory_events: dict[str, list[dict]] = {}
 
@@ -1717,7 +1586,6 @@ async def list_kill_switches(req: Request):
 
 
 @app.get("/compliance/dsar/subject/{subject}")
-<<<<<<< HEAD
 async def dsar_export(
     subject: str,
     tenant_id: str,
@@ -1776,35 +1644,11 @@ async def dsar_export(
             package.bundle_ciphertext
         ).hexdigest()
 
-=======
-async def dsar_export(subject: str, tenant_id: str, req: Request):
-    """
-    Admin-only DSAR export for run metadata owned by a subject in a tenant.
-    Returns minimal metadata to support compliance workflows without exposing unrelated tenants.
-    """
-    _require_admin(req)
-
-    matches = []
-    for run in _runs.values():
-        if run.get("owner_subject") == subject and run.get("owner_tenant_id") == tenant_id:
-            matches.append(
-                {
-                    "run_id": run.get("run_id"),
-                    "status": str(run.get("status")),
-                    "created_at": run.get("created_at"),
-                    "updated_at": run.get("updated_at"),
-                    "agent_type": run.get("agent_type"),
-                    "correlation_id": run.get("correlation_id"),
-                }
-            )
-
->>>>>>> origin/main
     _emit_request_audit_event(
         req,
         action_type=ActionType.ADMIN_DSAR_EXPORT,
         policy_decision=PolicyDecision.ALLOW,
         outcome=Outcome.SUCCESS,
-<<<<<<< HEAD
         error_code=(
             f"ADMIN_ACTION_DSAR_EXPORT:"
             f"{package.manifest['subject_hash']}:"
@@ -1930,21 +1774,6 @@ async def dsar_purge(
             "WORM audit blobs are immutable. Subject suppression in SIEM "
             "is achieved via DSAR_PURGE tombstone events keyed on "
             "subject_hash; downstream KQL queries must filter accordingly."
-=======
-        error_code=f"ADMIN_ACTION_DSAR_EXPORT:{subject}:{tenant_id}:{len(matches)}",
-        path=str(req.url.path),
-        risk_score=0.45,
-    )
-
-    return {
-        "subject": subject,
-        "tenant_id": tenant_id,
-        "run_count": len(matches),
-        "runs": matches,
-        "note": (
-            "This endpoint returns orchestrator run metadata. "
-            "Retrieve immutable audit artifacts from AiAgentAudit_CL and audit blob storage using run_id/correlation_id."
->>>>>>> origin/main
         ),
     }
 
@@ -1965,7 +1794,6 @@ async def get_compliance_reporting_queries(req: Request):
     }
 
 
-<<<<<<< HEAD
 # ── Phase 3: ISO 42001 / NIST AI RMF compliance endpoints ─────────────────────
 @app.get("/compliance/model-cards")
 async def list_model_cards(req: Request):
@@ -2212,8 +2040,6 @@ async def mcp_list_external_servers(req: Request):
     }
 
 
-=======
->>>>>>> origin/main
 @app.put("/kill-switches/{flag_name}", status_code=status.HTTP_204_NO_CONTENT)
 async def toggle_kill_switch(flag_name: str, req: Request):
     """

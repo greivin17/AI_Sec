@@ -19,7 +19,6 @@ export type ActionType =
   | "approval_response"
   | "run_start"
   | "run_complete"
-<<<<<<< HEAD
   | "run_abort"
   | "prompt_shield_scan"
   | "retrieved_content_scan"
@@ -35,9 +34,6 @@ export type ActionType =
   | "loop_detected"
   | "cost_threshold_breach"
   | "rate_limit_exceeded";
-=======
-  | "run_abort";
->>>>>>> origin/main
 
 export type PolicyDecision = "allow" | "deny" | "requires_approval";
 export type Outcome = "success" | "failure" | "blocked" | "timeout";
@@ -120,15 +116,11 @@ export type AttackCategory =
   | "credential-harvest"
   | "token-bomb"
   | "ssrf"
-<<<<<<< HEAD
   | "policy-bypass"
   | "loop"
   | "anomaly"
   | "egress"
   | "high-risk-action";
-=======
-  | "policy-bypass";
->>>>>>> origin/main
 
 export interface AttackTemplate {
   id: string;

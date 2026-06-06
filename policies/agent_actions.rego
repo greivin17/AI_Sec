@@ -101,7 +101,6 @@ egress_destination_is_allowed {
     input.action_type == "openai_call"
 }
 
-<<<<<<< HEAD
 # ── MCP tool calls (Phase 6) ──────────────────────────────────────────────────
 # When the orchestrator invokes a tool exposed by an EXTERNAL MCP server,
 # the action_type is the literal string "mcp_tool_call" and the calling
@@ -124,8 +123,6 @@ path_is_in_allowed_prefix {
     input.action_type == "mcp_tool_call"
 }
 
-=======
->>>>>>> origin/main
 # ── Reason string ─────────────────────────────────────────────────────────────
 
 reason = "kill_switch_active" {
