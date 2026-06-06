@@ -22,7 +22,6 @@ import future.keywords.in
 import future.keywords.if
 
 default allow := false
-default deny_reasons := []
 
 # Composite allow rule — every gate must pass.
 allow if {
@@ -45,7 +44,7 @@ scope_is_subset if {
 	count(requested - allowed) == 0
 }
 
-# ── depth cap ──────────────────────────────────────────────────────────────
+# ── depth cap ───────────────────────────────────────────────────────────────
 depth_within_limit if {
 	max := data.data.delegation_rules.max_call_depth
 	input.call_depth <= max
@@ -57,7 +56,7 @@ chain_contains_cycle if {
 	count(input.call_chain) > 1
 }
 
-# ── structured deny reasons for audit ──────────────────────────────────────
+# ── structured deny reasons for audit ───────────────────────────────────────
 deny_reasons contains "child_type_not_allowed" if {
 	not child_type_allowed
 }
