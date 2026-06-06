@@ -92,7 +92,9 @@ class AgentRegistrationRequest(BaseModel):
             if not host:
                 continue
             if "/" in host or "://" in host:
-                raise ValueError("allowed_egress_fqdns must contain hostnames, not URLs")
+                raise ValueError(
+                    "allowed_egress_fqdns must contain hostnames, not URLs"
+                )
             cleaned.append(host)
         return cleaned
 
@@ -177,4 +179,3 @@ class AgentProductRecord(BaseModel):
     risk_profile: RiskProfile
     red_team_run: RedTeamRun | None = None
     review: GoNoGoReview | None = None
-
