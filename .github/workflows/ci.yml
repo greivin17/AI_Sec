@@ -7,7 +7,6 @@ on:
     branches: [main]
 
 jobs:
-  # ── Lint + Unit Tests ────────────────────────────────────────────────────────
   test:
     name: Lint & Test
     runs-on: ubuntu-latest
@@ -33,7 +32,6 @@ jobs:
       - name: Unit tests
         run: pytest ../tests/unit/ -v --tb=short
         env:
-          # Set empty env vars so modules don't fail on import
           WORKSPACE_STORAGE_ACCOUNT: ""
           AUDIT_STORAGE_ACCOUNT: ""
           APP_CONFIG_ENDPOINT: ""
@@ -41,7 +39,6 @@ jobs:
           DCR_IMMUTABLE_ID: ""
           AZURE_OPENAI_ENDPOINT: ""
 
-  # ── OPA Policy Tests ─────────────────────────────────────────────────────────
   opa-test:
     name: OPA Policy Tests
     runs-on: ubuntu-latest
@@ -51,21 +48,49 @@ jobs:
 
       - name: Install OPA
         run: |
-          curl -L -o /usr/local/bin/opa \
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -L -o "$RUNNER_TEMP/bin/opa" \
             https://openpolicyagent.org/downloads/latest/opa_linux_amd64_static
-          chmod +x /usr/local/bin/opa
+          chmod +x "$RUNNER_TEMP/bin/opa"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Check OPA policy syntax
         run: |
-          opa check policies/agent_actions.rego
-          opa check policies/filesystem.rego
-          opa check policies/network.rego
-          opa check policies/secrets.rego
+          opa check --v0-compatible policies/agent_actions.rego
+          opa check --v0-compatible policies/filesystem.rego
+          opa check --v0-compatible policies/network.rego
+          opa check --v0-compatible policies/secrets.rego
+          opa check --v0-compatible policies/product_workflow.rego
 
       - name: Run OPA policy tests
-        run: opa test policies/ -v
+        run: opa test --v0-compatible policies/ -v
 
-  # ── Bicep Lint ───────────────────────────────────────────────────────────────
+      - name: Check product workflow release gate
+        run: |
+          cat > /tmp/no-go-agent.json <<'JSON'
+          {
+            "review_decision": "no_go",
+            "risk_tier": "high",
+            "owners": [{"email": "security@example.com"}],
+            "business_purpose": "Analyze sensitive data with network tools.",
+            "red_team_results": [
+              {"status": "fail", "critical": true}
+            ]
+          }
+          JSON
+          test "$(opa eval \
+            --v0-compatible \
+            --data policies/product_workflow.rego \
+            --input /tmp/no-go-agent.json \
+            --format raw \
+            'data.agent.product_workflow.deploy_allowed')" = "false"
+          test "$(opa eval \
+            --v0-compatible \
+            --data policies/product_workflow.rego \
+            --input /tmp/no-go-agent.json \
+            --format raw \
+            'data.agent.product_workflow.deny[_] == "critical_red_team_failure"')" = "true"
+
   bicep-lint:
     name: Bicep Lint
     runs-on: ubuntu-latest
@@ -75,9 +100,11 @@ jobs:
 
       - name: Install Bicep
         run: |
-          curl -Lo /usr/local/bin/bicep \
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -Lo "$RUNNER_TEMP/bin/bicep" \
             https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
-          chmod +x /usr/local/bin/bicep
+          chmod +x "$RUNNER_TEMP/bin/bicep"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Lint Bicep files
         run: |
@@ -87,7 +114,6 @@ jobs:
             bicep lint "$f"
           done
 
-  # ── Docker Build ─────────────────────────────────────────────────────────────
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
