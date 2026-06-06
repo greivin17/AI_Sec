@@ -1,0 +1,16 @@
+{
+  "review_decision": "conditional_go",
+  "risk_tier": "medium",
+  "owners": [
+    {
+      "email": "security@example.com"
+    }
+  ],
+  "business_purpose": "Default non-production accelerator deployment for product workflow validation.",
+  "red_team_results": [
+    {
+      "status": "pass",
+      "critical": true
+    }
+  ]
+}
