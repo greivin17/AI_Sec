@@ -32,14 +32,17 @@ from errors import LoopDetectedError
 DEFAULT_WINDOW = 8
 
 
-def _arg_hash(tool_args: Any) -> str:
+def _arg_hash(tool_args: Any, retain: deque[Any] | None = None) -> str:
     """Canonical hash of tool arguments."""
     try:
-        canonical = json.dumps(
-            tool_args, sort_keys=True, separators=(",", ":"), default=str
-        )
+        canonical = json.dumps(tool_args, sort_keys=True, separators=(",", ":"))
     except (TypeError, ValueError):
-        canonical = repr(tool_args)
+        if retain is not None:
+            retain.append(tool_args)
+        canonical = (
+            f"{type(tool_args).__module__}.{type(tool_args).__qualname__}:"
+            f"{id(tool_args)}:{repr(tool_args)}"
+        )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -52,13 +55,14 @@ class LoopDetector:
             raise ValueError("max_depth must be >= 2")
         self._threshold = max_depth
         self._window: deque[str] = deque(maxlen=max(window, max_depth))
+        self._non_json_args: deque[Any] = deque(maxlen=max(window, max_depth))
 
     def observe(self, tool_name: str, tool_args: Any) -> None:
         """Record a tool call. Raises :class:`LoopDetectedError` if the same
         ``(tool_name, args)`` pair has appeared ``max_depth`` times in the
         rolling window.
         """
-        key = f"{tool_name}::{_arg_hash(tool_args)}"
+        key = f"{tool_name}::{_arg_hash(tool_args, self._non_json_args)}"
         self._window.append(key)
         # Counting on a small deque is O(window) which is bounded and tiny.
         count = self._window.count(key)
