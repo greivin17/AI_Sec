@@ -40,7 +40,9 @@ router = APIRouter(prefix="/product", tags=["product-workflow"])
 _AGENT_REGISTRY: dict[str, AgentProductRecord] = {}
 logger = logging.getLogger(__name__)
 
-PRODUCT_WORKFLOW_STORAGE_ACCOUNT = os.environ.get("PRODUCT_WORKFLOW_STORAGE_ACCOUNT", "")
+PRODUCT_WORKFLOW_STORAGE_ACCOUNT = os.environ.get(
+    "PRODUCT_WORKFLOW_STORAGE_ACCOUNT", ""
+)
 PRODUCT_WORKFLOW_CONTAINER = os.environ.get(
     "PRODUCT_WORKFLOW_CONTAINER", "agent-risk-registry"
 )
@@ -206,26 +208,57 @@ def _tier(score: int) -> RiskTier:
 def generate_risk_profile(registration: AgentRegistrationRequest) -> RiskProfile:
     factors: list[RiskFactor] = []
 
-    sensitive = sorted({item.value for item in registration.data_classes if item in SENSITIVE_DATA_CLASSES})
+    sensitive = sorted(
+        {
+            item.value
+            for item in registration.data_classes
+            if item in SENSITIVE_DATA_CLASSES
+        }
+    )
     if sensitive:
         factors.append(
             RiskFactor(
                 name="sensitive_data_access",
                 severity=RiskTier.HIGH,
                 score=25,
-                rationale=f"Agent declares sensitive data classes: {', '.join(sensitive)}.",
-                mitigation="Require DLP, output redaction, owner approval, and evidence retention.",
+                rationale=(
+                    "Agent declares sensitive data classes: "
+                    f"{', '.join(sensitive)}."
+                ),
+                mitigation=(
+                    "Require DLP, output redaction, owner approval, "
+                    "and evidence retention."
+                ),
                 mappings=[
-                    _mapping(ControlFramework.OWASP_LLM, "LLM02", "Sensitive Information Disclosure", "Sensitive classes require leakage controls."),
-                    _mapping(ControlFramework.NIST_AI_RMF, "MAP 2.3", "Data context and risk mapping", "Data classes drive model-risk scope."),
-                    _mapping(ControlFramework.ISO_42001, "A.7.4", "Data for AI systems", "Data use should be governed and traceable."),
+                    _mapping(
+                        ControlFramework.OWASP_LLM,
+                        "LLM02",
+                        "Sensitive Information Disclosure",
+                        "Sensitive classes require leakage controls.",
+                    ),
+                    _mapping(
+                        ControlFramework.NIST_AI_RMF,
+                        "MAP 2.3",
+                        "Data context and risk mapping",
+                        "Data classes drive model-risk scope.",
+                    ),
+                    _mapping(
+                        ControlFramework.ISO_42001,
+                        "A.7.4",
+                        "Data for AI systems",
+                        "Data use should be governed and traceable.",
+                    ),
                 ],
             )
         )
 
     write_tools = [tool.name for tool in registration.tools if tool.can_write_data]
-    network_tools = [tool.name for tool in registration.tools if tool.can_call_external_network]
-    approval_tools = [tool.name for tool in registration.tools if tool.requires_human_approval]
+    network_tools = [
+        tool.name for tool in registration.tools if tool.can_call_external_network
+    ]
+    approval_tools = [
+        tool.name for tool in registration.tools if tool.requires_human_approval
+    ]
 
     if write_tools:
         factors.append(
@@ -234,16 +267,33 @@ def generate_risk_profile(registration: AgentRegistrationRequest) -> RiskProfile
                 severity=RiskTier.MEDIUM,
                 score=15,
                 rationale=f"Tools can write or mutate data: {', '.join(write_tools)}.",
-                mitigation="Gate writes through OPA policy, audit hashes, and human approval for high-impact targets.",
+                mitigation=(
+                    "Gate writes through OPA policy, audit hashes, and human "
+                    "approval for high-impact targets."
+                ),
                 mappings=[
-                    _mapping(ControlFramework.OWASP_LLM, "LLM08", "Excessive Agency", "Write tools increase the blast radius of agent mistakes."),
-                    _mapping(ControlFramework.NIST_AI_RMF, "MANAGE 2.3", "Risk response", "High-impact actions need documented controls."),
+                    _mapping(
+                        ControlFramework.OWASP_LLM,
+                        "LLM08",
+                        "Excessive Agency",
+                        "Write tools increase the blast radius of agent mistakes.",
+                    ),
+                    _mapping(
+                        ControlFramework.NIST_AI_RMF,
+                        "MANAGE 2.3",
+                        "Risk response",
+                        "High-impact actions need documented controls.",
+                    ),
                 ],
             )
         )
 
     if network_tools or registration.allowed_egress_fqdns:
-        severity = RiskTier.HIGH if "*" in registration.allowed_egress_fqdns else RiskTier.MEDIUM
+        severity = (
+            RiskTier.HIGH
+            if "*" in registration.allowed_egress_fqdns
+            else RiskTier.MEDIUM
+        )
         score = 25 if severity == RiskTier.HIGH else 15
         factors.append(
             RiskFactor(
@@ -251,11 +301,29 @@ def generate_risk_profile(registration: AgentRegistrationRequest) -> RiskProfile
                 severity=severity,
                 score=score,
                 rationale="Agent can reach external destinations.",
-                mitigation="Use explicit FQDN allowlists, block metadata endpoints, and audit every outbound call.",
+                mitigation=(
+                    "Use explicit FQDN allowlists, block metadata endpoints, "
+                    "and audit every outbound call."
+                ),
                 mappings=[
-                    _mapping(ControlFramework.OWASP_LLM, "LLM05", "Improper Output Handling", "External calls can turn unsafe outputs into actions."),
-                    _mapping(ControlFramework.OWASP_LLM, "LLM08", "Excessive Agency", "Network tools increase autonomous reach."),
-                    _mapping(ControlFramework.ISO_42001, "A.8.2", "System operation", "Operational controls should constrain external interactions."),
+                    _mapping(
+                        ControlFramework.OWASP_LLM,
+                        "LLM05",
+                        "Improper Output Handling",
+                        "External calls can turn unsafe outputs into actions.",
+                    ),
+                    _mapping(
+                        ControlFramework.OWASP_LLM,
+                        "LLM08",
+                        "Excessive Agency",
+                        "Network tools increase autonomous reach.",
+                    ),
+                    _mapping(
+                        ControlFramework.ISO_42001,
+                        "A.8.2",
+                        "System operation",
+                        "Operational controls should constrain external interactions.",
+                    ),
                 ],
             )
         )
@@ -267,10 +335,23 @@ def generate_risk_profile(registration: AgentRegistrationRequest) -> RiskProfile
                 severity=RiskTier.HIGH,
                 score=25,
                 rationale="No prompt-injection defense is declared.",
-                mitigation="Enable prompt shielding, retrieved-content scanning, and instruction hierarchy checks.",
+                mitigation=(
+                    "Enable prompt shielding, retrieved-content scanning, "
+                    "and instruction hierarchy checks."
+                ),
                 mappings=[
-                    _mapping(ControlFramework.OWASP_LLM, "LLM01", "Prompt Injection", "Prompt injection is the primary pre-deployment eval gate."),
-                    _mapping(ControlFramework.NIST_AI_RMF, "MEASURE 2.7", "AI system testing", "Adversarial prompt tests should be measured."),
+                    _mapping(
+                        ControlFramework.OWASP_LLM,
+                        "LLM01",
+                        "Prompt Injection",
+                        "Prompt injection is the primary pre-deployment eval gate.",
+                    ),
+                    _mapping(
+                        ControlFramework.NIST_AI_RMF,
+                        "MEASURE 2.7",
+                        "AI system testing",
+                        "Adversarial prompt tests should be measured.",
+                    ),
                 ],
             )
         )
@@ -281,11 +362,27 @@ def generate_risk_profile(registration: AgentRegistrationRequest) -> RiskProfile
                 name="approval_gap",
                 severity=RiskTier.MEDIUM,
                 score=10,
-                rationale=f"Tools declare approval needs but no workflow actions are configured: {', '.join(approval_tools)}.",
-                mitigation="Map high-risk tools to human approval actions and timeout behavior.",
+                rationale=(
+                    "Tools declare approval needs but no workflow actions are "
+                    f"configured: {', '.join(approval_tools)}."
+                ),
+                mitigation=(
+                    "Map high-risk tools to human approval actions and "
+                    "timeout behavior."
+                ),
                 mappings=[
-                    _mapping(ControlFramework.OWASP_LLM, "LLM08", "Excessive Agency", "Human gates reduce autonomous high-impact action risk."),
-                    _mapping(ControlFramework.ISO_42001, "A.6.2", "Responsibilities", "Control ownership should be assigned."),
+                    _mapping(
+                        ControlFramework.OWASP_LLM,
+                        "LLM08",
+                        "Excessive Agency",
+                        "Human gates reduce autonomous high-impact action risk.",
+                    ),
+                    _mapping(
+                        ControlFramework.ISO_42001,
+                        "A.6.2",
+                        "Responsibilities",
+                        "Control ownership should be assigned.",
+                    ),
                 ],
             )
         )
@@ -297,10 +394,23 @@ def generate_risk_profile(registration: AgentRegistrationRequest) -> RiskProfile
                 severity=RiskTier.MEDIUM,
                 score=10,
                 rationale="Model declaration says prompts or outputs may be retained.",
-                mitigation="Require approved data-processing basis, data minimization, and retention evidence.",
+                mitigation=(
+                    "Require approved data-processing basis, data minimization, "
+                    "and retention evidence."
+                ),
                 mappings=[
-                    _mapping(ControlFramework.NIST_AI_RMF, "GOVERN 4.2", "Risk documentation", "Provider data handling should be documented."),
-                    _mapping(ControlFramework.ISO_42001, "A.7.5", "Data provenance", "AI data handling should be traceable."),
+                    _mapping(
+                        ControlFramework.NIST_AI_RMF,
+                        "GOVERN 4.2",
+                        "Risk documentation",
+                        "Provider data handling should be documented.",
+                    ),
+                    _mapping(
+                        ControlFramework.ISO_42001,
+                        "A.7.5",
+                        "Data provenance",
+                        "AI data handling should be traceable.",
+                    ),
                 ],
             )
         )
@@ -322,7 +432,10 @@ def _has_egress_controls(registration: AgentRegistrationRequest) -> bool:
     network_tools = any(tool.can_call_external_network for tool in registration.tools)
     if not network_tools:
         return True
-    return bool(registration.allowed_egress_fqdns) and "*" not in registration.allowed_egress_fqdns
+    return (
+        bool(registration.allowed_egress_fqdns)
+        and "*" not in registration.allowed_egress_fqdns
+    )
 
 
 def run_red_team_pack(agent_id: str) -> RedTeamRun:
@@ -335,26 +448,44 @@ def run_red_team_pack(agent_id: str) -> RedTeamRun:
         evidence = "Control declared and ready for integration testing."
         remediation = None
 
-        if case.attack_type == "prompt_injection" and not registration.prompt_injection_defenses:
+        if (
+            case.attack_type == "prompt_injection"
+            and not registration.prompt_injection_defenses
+        ):
             status_value = EvalStatus.FAIL
             evidence = "No prompt-injection defenses were declared."
-            remediation = "Add prompt shielding and retrieved-content scanning before production."
+            remediation = (
+                "Add prompt shielding and retrieved-content scanning before "
+                "production."
+            )
         elif case.attack_type == "data_exfiltration" and (
-            any(data_class in SENSITIVE_DATA_CLASSES for data_class in registration.data_classes)
+            any(
+                data_class in SENSITIVE_DATA_CLASSES
+                for data_class in registration.data_classes
+            )
             and not _has_egress_controls(registration)
         ):
             status_value = EvalStatus.FAIL
             evidence = "Sensitive data is in scope and egress controls are incomplete."
             remediation = "Constrain egress to explicit FQDNs and add DLP checks."
-        elif case.attack_type == "excessive_agency" and not _has_capability_manifest(registration):
+        elif (
+            case.attack_type == "excessive_agency"
+            and not _has_capability_manifest(registration)
+        ):
             status_value = EvalStatus.FAIL
             evidence = "No explicit tool capability manifest was declared."
             remediation = "Declare all tools and generate OPA allowlists."
-        elif case.attack_type == "ssrf_or_egress_bypass" and not _has_egress_controls(registration):
+        elif (
+            case.attack_type == "ssrf_or_egress_bypass"
+            and not _has_egress_controls(registration)
+        ):
             status_value = EvalStatus.FAIL
             evidence = "Network-capable tools do not have a safe egress allowlist."
             remediation = "Use exact host allowlists and block wildcard egress."
-        elif case.attack_type == "unbounded_consumption" and registration.model.max_tokens_per_run > 250_000:
+        elif (
+            case.attack_type == "unbounded_consumption"
+            and registration.model.max_tokens_per_run > 250_000
+        ):
             status_value = EvalStatus.WARN
             evidence = "Token budget is high for a default production gate."
             remediation = "Lower token budget or require explicit reviewer acceptance."
@@ -377,16 +508,25 @@ def run_red_team_pack(agent_id: str) -> RedTeamRun:
 def produce_review(agent_id: str, reviewer_notes: str = "") -> GoNoGoReview:
     record = _get_record(agent_id)
     red_team_run = record.red_team_run or run_red_team_pack(agent_id)
-    failures = [result for result in red_team_run.results if result.status == EvalStatus.FAIL]
+    failures = [
+        result for result in red_team_run.results if result.status == EvalStatus.FAIL
+    ]
     critical_failures = [result for result in failures if result.case.critical]
     mitigations = [
         result.remediation
         for result in red_team_run.results
         if result.remediation
     ]
-    mitigations.extend(factor.mitigation for factor in record.risk_profile.factors if factor.severity in {RiskTier.HIGH, RiskTier.CRITICAL})
+    mitigations.extend(
+        factor.mitigation
+        for factor in record.risk_profile.factors
+        if factor.severity in {RiskTier.HIGH, RiskTier.CRITICAL}
+    )
 
-    if critical_failures or record.risk_profile.tier in {RiskTier.HIGH, RiskTier.CRITICAL}:
+    if critical_failures or record.risk_profile.tier in {
+        RiskTier.HIGH,
+        RiskTier.CRITICAL,
+    }:
         decision = ReviewDecision.NO_GO
     elif failures or record.risk_profile.tier == RiskTier.MEDIUM:
         decision = ReviewDecision.CONDITIONAL_GO
@@ -444,7 +584,9 @@ def build_deployment_policy(agent_id: str) -> DeploymentPolicyBundle:
         },
         recommended_feature_flags={
             "agent-execution-enabled": review.decision != ReviewDecision.NO_GO,
-            f"agent-{registration.agent_id}-enabled": review.decision != ReviewDecision.NO_GO,
+            f"agent-{registration.agent_id}-enabled": (
+                review.decision != ReviewDecision.NO_GO
+            ),
         },
         release_gate=review.decision,
     )
@@ -460,7 +602,11 @@ def _get_record(agent_id: str) -> AgentProductRecord:
     return record
 
 
-@router.post("/agents", response_model=AgentProductRecord, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/agents",
+    response_model=AgentProductRecord,
+    status_code=status.HTTP_201_CREATED,
+)
 def register_agent(registration: AgentRegistrationRequest) -> AgentProductRecord:
     if _STORE.exists(registration.agent_id):
         raise HTTPException(
@@ -493,7 +639,10 @@ def review_agent(agent_id: str, reviewer_notes: str = "") -> GoNoGoReview:
     return produce_review(agent_id, reviewer_notes=reviewer_notes)
 
 
-@router.get("/agents/{agent_id}/deployment-policy", response_model=DeploymentPolicyBundle)
+@router.get(
+    "/agents/{agent_id}/deployment-policy",
+    response_model=DeploymentPolicyBundle,
+)
 def get_deployment_policy(agent_id: str) -> DeploymentPolicyBundle:
     return build_deployment_policy(agent_id)
 
