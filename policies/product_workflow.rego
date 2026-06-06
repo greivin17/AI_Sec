@@ -1,7 +1,5 @@
 package agent.product_workflow
 
-import future.keywords.in
-
 default deploy_allowed = false
 default requires_security_exception = false
 
@@ -17,32 +15,36 @@ requires_security_exception {
 }
 
 has_high_or_critical_risk {
-    input.risk_tier in {"high", "critical"}
+    input.risk_tier == "high"
+}
+
+has_high_or_critical_risk {
+    input.risk_tier == "critical"
 }
 
 has_critical_eval_failure {
-    some result in input.red_team_results
+    result := input.red_team_results[_]
     result.status == "fail"
     result.critical == true
 }
 
-deny contains "review_decision_no_go" {
+deny["review_decision_no_go"] {
     input.review_decision == "no_go"
 }
 
-deny contains "critical_red_team_failure" {
+deny["critical_red_team_failure"] {
     has_critical_eval_failure
 }
 
-deny contains "risk_tier_blocks_deploy" {
+deny["risk_tier_blocks_deploy"] {
     has_high_or_critical_risk
 }
 
-deny contains "missing_owner" {
+deny["missing_owner"] {
     count(input.owners) == 0
 }
 
-deny contains "missing_business_purpose" {
+deny["missing_business_purpose"] {
     input.business_purpose == ""
 }
 
